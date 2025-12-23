@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>刚才</title>
+    <link rel="manifest" href='data:application/manifest+json,{"name":"刚才","short_name":"刚才","display":"standalone","start_url":".","background_color":"#F5EBE0","theme_color":"#81B29A"}'>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap');
+        :root { --m-bg: #F5EBE0; --m-sage: #81B29A; --m-clay: #E07A5F; --m-text: #3D405B; }
+        body { font-family: 'Outfit', 'PingFang SC', sans-serif; background-color: var(--m-bg); color: var(--m-text); transition: background-color 0.8s ease; -webkit-tap-highlight-color: transparent; overflow-x: hidden; }
+        ::-webkit-scrollbar { display: none; }
+        
+        /* 1. 引导层修复 - 强制置顶与高亮 */
+        #tour-mask { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 9500; display: none; cursor: pointer; }
+        #tour-tooltip { position: fixed; z-index: 9600; display: none; transition: all 0.4s cubic-bezier(0.18, 0.89, 0.32, 1.28); pointer-events: none; }
+        
+        /* 挖孔高亮 - 修复亮度问题 */
+        .highlight { 
+            position: relative !important; 
+            z-index: 9501 !important; 
+            background: white !important; 
+            box-shadow: 0 0 0 10000px rgba(0,0,0,0.75) !important; /* 物理遮罩 */
+            border-radius: 12px !important;
+            pointer-events: auto !important;
+        }
+
+        /* 2. 启动与寄语 */
+        #splash-screen { position: fixed; inset: 0; z-index: 9999; background: var(--m-bg); display: flex; flex-direction: column; align-items: center; justify-content: center; transition: 0.5s; }
+        #onboarding { position: fixed; inset: 0; z-index: 9000; background: rgba(245, 235, 224, 0.98); display: none; padding: 40px; flex-direction: column; justify-content: center; }
+        
+        /* 3. UI 组件 */
+        .morandi-card { background: rgba(255, 255, 255, 0.4); border-radius: 28px; border: 1px solid rgba(255, 255, 255, 0.5); }
+        .picker-box { height: 90px; display: flex; mask-image: linear-gradient(to bottom, transparent, black 40%, black 60%, transparent); }
+        .picker-col { flex: 1; height: 90px; overflow-y: scroll; scroll-snap-type: y mandatory; }
+        .picker-item { height: 30px; display: flex; align-items: center; justify-content: center; scroll-snap-align: center; font-size: 13px; color: #d1d5db; }
+        .picker-item.selected { color: var(--m-sage); font-weight: 700; font-size: 15px; }
+        .nav-glass { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(20px); border-top: 1px solid rgba(0,0,0,0.02); }
+        
+        .page { display: none; animation: fadeIn 0.4s ease forwards; }
+        .page.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .btn-tag { padding: 10px 18px; border-radius: 18px; background: white; font-size: 13px; font-weight: 500; border: 1px solid transparent; }
+        .btn-tag.active { background: var(--m-sage); color: white; transform: scale(0.95); }
+        
+        /* 4. 统计页新胶囊 */
+        .pill-toggle { background: white; padding: 6px 16px; border-radius: 99px; border: 1px solid rgba(129, 178, 154, 0.3); display: inline-flex; align-items: center; gap: 8px; cursor: pointer; transition: 0.3s; }
+        .pill-toggle:active { transform: scale(0.9); }
+
+        /* 5. 自建日历 (Fix 1) */
+        #date-modal { position: fixed; inset: 0; z-index: 9800; background: rgba(0,0,0,0.3); backdrop-filter: blur(4px); display: none; align-items: center; justify-content: center; padding: 20px; }
+        .cal-box { background: white; width: 100%; max-width: 320px; border-radius: 32px; padding: 24px; box-shadow: 0 20px 40px rgba(0,0,0,0.1); }
+        .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-top: 16px; }
+        .cal-day { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; border-radius: 50%; color: #999; }
+        .cal-day.active { color: var(--m-text); }
+        .cal-day.selected { background: var(--m-sage); color: white !important; }
+
+        /* 6. 统计下拉菜单 (Fix 2) */
+        #stats-menu { position: fixed; inset: 0; z-index: 9750; background: rgba(0,0,0,0.1); display: none; }
+        .stats-dropdown { position: absolute; top: 110px; left: 32px; background: white; border-radius: 28px; padding: 12px; box-shadow: 0 15px 35px rgba(0,0,0,0.12); width: 220px; border: 1px solid rgba(0,0,0,0.05); }
+        .menu-list { max-height: 250px; overflow-y: auto; }
+        .menu-item { padding: 12px 16px; font-size: 13px; font-weight: 600; border-radius: 14px; cursor: pointer; transition: 0.2s; display: flex; justify-content: space-between; align-items: center; }
+        .menu-item:active { background: #f5f5f5; }
+        .menu-item.active { color: var(--m-sage); background: #f0f8f4; }
+
+        input[type="range"] { -webkit-appearance: none; background: rgba(0,0,0,0.05); height: 4px; border-radius: 2px; }
+        input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: var(--m-clay); border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+/* 紧凑时间轴线条 */
+        .timeline-item::before { 
+            content: ''; position: absolute; left: 74px; top: 0; bottom: 0; width: 1px; background: rgba(129, 178, 154, 0.2); 
+        }
+        /* 事项卡片紧凑化 */
+        .history-card { 
+            background: white; padding: 10px 14px; border-radius: 18px; box-shadow: 0 4px 15px rgba(0,0,0,0.02); width: 100%; 
+        }
+        /* 跨天提醒字样 */
+        #hint-yesterday { 
+            font-size: 9px; color: var(--m-clay); font-weight: bold; margin-top: 4px; display: block; opacity: 0; transition: 0.3s; text-align: center; 
+        }
+    </style>
+</head>
+<body class="pb-24">
+
+    <!-- 引导层 -->
+    <div id="tour-mask" onclick="nextTourStep()"></div>
+    <div id="tour-tooltip" class="bg-white p-6 rounded-[32px] shadow-2xl max-w-[220px] border border-stone-100">
+        <p id="tour-text" class="text-xs leading-relaxed text-stone-600 mb-4 font-medium"></p>
+        <div class="flex justify-between items-center text-[10px] font-bold uppercase tracking-widest">
+            <span id="tour-step-num" class="text-stone-300">1/5</span>
+            <span id="tour-btn-text" class="text-[#81B29A]">点击继续</span>
+        </div>
+    </div>
+
+    <!-- 启动页 -->
+    <div id="splash-screen"><div class="w-16 h-16 rounded-3xl bg-white shadow-xl flex items-center justify-center mb-4"><span class="text-2xl font-bold text-[#81B29A]">刚</span></div><h2 class="text-sm font-bold tracking-widest text-stone-400 uppercase">Just Now</h2></div>
+    
+    <!-- 寄语 -->
+    <div id="onboarding"><div class="max-w-xs mx-auto space-y-8 text-center"><h3 class="text-xl font-bold italic text-stone-700">你好呀，很高兴遇见你。</h3><p class="text-sm leading-relaxed text-stone-500 font-light">时间不是流沙，而是生活的颗粒。<br>在这里，我们学习柳比歇夫——<br><b>不评价，只记录。</b><br><br>记录你的“刚才”，观察你的状态。<br>准备好开始探索自己了吗？</p><button onclick="closeOnboarding()" class="w-full py-4 bg-[#3D405B] text-white rounded-full font-bold text-sm tracking-widest shadow-xl active:scale-95 transition">开启记录之旅</button></div></div>
+
+    <!-- 日历模态框 -->
+    <div id="date-modal" onclick="closeDateModal(event)">
+        <div class="cal-box" onclick="event.stopPropagation()">
+            <div class="flex justify-between items-center px-2">
+                <button onclick="changeMonth(-1)"><i data-lucide="chevron-left" class="w-5 h-5"></i></button>
+                <h4 id="cal-month-title" class="text-sm font-bold tracking-widest">2025年 12月</h4>
+                <button onclick="changeMonth(1)"><i data-lucide="chevron-right" class="w-5 h-5"></i></button>
+            </div>
+            <div class="cal-grid" id="cal-grid-days"></div>
+        </div>
+    </div>
+
+    <!-- 统计筛选菜单 -->
+    <div id="stats-menu" onclick="toggleStatsMenu()">
+        <div class="stats-dropdown" onclick="event.stopPropagation()">
+            <div class="p-2 border-b border-stone-50 mb-2 flex space-x-1">
+                <button onclick="setStatsDim('week')" id="dim-week" class="flex-1 py-1.5 rounded-xl text-[10px] font-bold">按周</button>
+                <button onclick="setStatsDim('month')" id="dim-month" class="flex-1 py-1.5 rounded-xl text-[10px] font-bold">按月</button>
+                <button onclick="setStatsDim('year')" id="dim-year" class="flex-1 py-1.5 rounded-xl text-[10px] font-bold">按年</button>
+            </div>
+            <div id="menu-options-list" class="menu-list"></div>
+        </div>
+    </div>
+
+    <!-- 顶栏 -->
+    <header class="p-8 pb-0 flex justify-between items-start">
+        <div id="title-area" class="flex items-baseline space-x-2">
+            <!-- 动态注入标题 -->
+        </div>
+        <div id="date-action-area">
+            <button onclick="openDateModal()" class="pill-toggle !text-[10px] !py-1 !px-3" id="tour-date-target">
+                <span id="global-date-str" class="!text-[10px] !font-bold">12月23日周二</span>
+                <i data-lucide="chevron-down" class="w-3 h-3 text-stone-300"></i>
+            </button>
+        </div>
+    </header>
+
+    <main class="max-w-md mx-auto px-6 mt-6">
+        <!-- 1. 记录页 -->
+        <div id="page-record" class="page active space-y-8">
+            <div class="morandi-card p-6" id="tour-time-target">
+                <div class="grid grid-cols-2 gap-4">
+<div class="text-center">
+                        <span class="text-[9px] font-bold text-stone-300 uppercase tracking-widest mb-3 block">起始点</span>
+                        <div class="flex picker-box" id="p-start">
+                            <div id="h-start" class="flex-1"></div>
+                            <div id="m-start" class="flex-1"></div>
+                        </div>
+                        <!-- 跨天逻辑提示小字 -->
+                        <span id="hint-yesterday">前一日</span>
+                    </div>
+            <div class="space-y-4" id="tour-tag-target">
+                <div id="tagBox" class="flex flex-wrap gap-2"></div>
+                <input id="otherInp" type="text" placeholder="描述细节..." class="hidden w-full p-4 rounded-2xl bg-white/60 border-none text-sm outline-none">
+            </div>
+            <div class="space-y-6">
+                <div class="flex justify-between items-end pl-1"><label class="text-[10px] font-bold text-stone-400 uppercase tracking-widest">此刻状态</label><span id="vibeLabel" class="text-[11px] font-bold text-stone-500 bg-white/40 px-3 py-1 rounded-full">平静如水</span></div>
+                <input type="range" id="vibeRange" min="1" max="5" step="1" value="3" class="w-full">
+            </div>
+            <button onclick="commitGrain()" class="w-full bg-[#3D405B] text-white py-5 rounded-[26px] font-bold shadow-lg active:scale-95 transition text-sm tracking-[0.2em]">存入这一刻</button>
+        </div>
+
+        <!-- 2. 轨迹页 -->
+<!-- 优化后：仅保留容器，标题通过JS动态控制，间隙缩小 -->
+            <div id="timelineContainer" class="relative space-y-2 pt-2"></div>
+        </div>
+
+        <!-- 3. 统计页 -->
+        <div id="page-stats" class="page space-y-6">
+            <div class="morandi-card p-8 text-center space-y-6">
+                <i data-lucide="sparkles" class="w-6 h-6 mx-auto text-stone-300"></i>
+                <h3 class="text-sm font-bold">镜像叙事报告</h3>
+                <p id="reportContent" class="text-[11px] text-stone-600 leading-relaxed italic px-4 font-serif">“在这里，数据被翻译成温柔的文字。”</p>
+                <button onclick="generateReport()" class="bg-[#3D405B] text-white px-8 py-2.5 rounded-full text-[10px] font-bold uppercase tracking-[0.2em] shadow-lg">生成信件</button>
+            </div>
+            <div class="morandi-card p-6"><div id="distList" class="space-y-4"></div></div>
+        </div>
+
+        <!-- 4. 设置页 -->
+        <div id="page-settings" class="page space-y-6">
+            <div class="space-y-4"><label class="text-[10px] font-bold text-stone-400 uppercase tracking-widest pl-1">常做事项标签</label><div id="settingTagsInps" class="grid grid-cols-1 gap-2"></div></div>
+            <div class="space-y-4"><label class="text-[10px] font-bold text-stone-400 uppercase tracking-widest pl-1">DeepSeek API Key</label><input id="apiKeyInp" type="password" class="w-full p-4 rounded-2xl bg-white border-none text-sm shadow-sm outline-none"></div>
+            <button onclick="saveSettings()" class="w-full bg-stone-400 text-white py-4 rounded-[22px] text-[11px] font-bold uppercase tracking-widest" id="tour-settings-target">保存配置</button>
+            <div class="pt-10 flex justify-center opacity-20"><button onclick="localStorage.clear(); location.reload();" class="text-[10px] underline">清空数据</button></div>
+        </div>
+    </main>
+
+    <nav class="nav-glass fixed bottom-0 left-0 right-0 h-20 flex justify-around items-center px-6 pb-4">
+        <button onclick="switchTab('record')" class="n-btn text-stone-300" id="btn-record"><i data-lucide="plus-circle" class="w-6 h-6"></i></button>
+        <button onclick="switchTab('history')" class="n-btn text-stone-300" id="btn-history"><i data-lucide="layout-list" class="w-6 h-6"></i></button>
+        <button onclick="switchTab('stats')" class="n-btn text-stone-300" id="btn-stats"><i data-lucide="sparkles" class="w-6 h-6"></i></button>
+        <button onclick="switchTab('settings')" class="n-btn text-stone-300" id="btn-settings"><i data-lucide="fingerprint" class="w-6 h-6"></i></button>
+    </nav>
+
+    <script>
+        // --- 状态存储 ---
+        let state = {
+            logs: JSON.parse(localStorage.getItem('just_v17_logs') || '[]'),
+            tags: JSON.parse(localStorage.getItem('just_v17_tags') || '["深度工作", "专注阅读", "休憩发呆", "身体律动", "日常琐事"]'),
+            key: localStorage.getItem('just_v17_key') || '',
+            onboardingDone: localStorage.getItem('just_v17_onboarding') === 'true',
+            tourDone: localStorage.getItem('just_v17_tour') === 'true',
+            currentDate: new Date(),
+            statsDim: 'week', // week, month, year
+            statsValue: 'this' // this, last
+        };
+
+        const tourSteps = [
+            { target: 'tour-date-target', text: '点击这里选择日期，补录过去的时光。' },
+            { target: 'tour-time-target', text: '拨动这两个滚轮，打捞刚才发生的每一刻。' },
+            { target: 'tour-tag-target', text: '选一个刚才完成的事。可以在设置里自定义。' },
+            { target: 'btn-history', text: '在这里，你可以回看任何一天的生命轨迹。' },
+            { target: 'btn-stats', text: '这里是统计页。点击左上角胶囊可以切换周、月、年维度。' }
+        ];
+        let tIdx = 0;
+        const sweetWords = ["好哒", "知道啦", "下一位", "继续呀", "开始记录"];
+
+        window.onload = () => {
+            lucide.createIcons();
+            initSystem();
+            switchTab('record');
+            setTimeout(() => {
+                document.getElementById('splash-screen').style.opacity = '0';
+                setTimeout(() => {
+                    document.getElementById('splash-screen').style.display = 'none';
+                    if(!state.onboardingDone) document.getElementById('onboarding').style.display = 'flex';
+                    else if(!state.tourDone) startTour();
+                }, 500);
+            }, 1000);
+        };
+
+        function initSystem() {
+            updateDisplayDate();
+            const inpsBox = document.getElementById('settingTagsInps');
+            inpsBox.innerHTML = Array(5).fill(0).map((_, i) => `<input type="text" class="tag-inp w-full p-4 rounded-2xl bg-white border-none text-sm shadow-sm" value="${state.tags[i] || ''}" placeholder="事项 ${i+1}">`).join('');
+            document.getElementById('apiKeyInp').value = state.key;
+            document.getElementById('vibeRange').oninput = e => {
+                const map = ["", "精疲力竭", "略显疲态", "平静如水", "精力充沛", "巅峰时刻"];
+                document.getElementById('vibeLabel').innerText = map[e.target.value];
+            };
+            initWheels();
+            renderCalendar();
+        }
+
+        // --- 引导系统重构 (Fix 1 & 3) ---
+        function startTour() {
+            document.getElementById('tour-mask').style.display = 'block';
+            document.getElementById('tour-tooltip').style.display = 'block';
+            showTourStep();
+        }
+        function showTourStep() {
+            const step = tourSteps[tIdx];
+            const target = document.getElementById(step.target);
+            const tooltip = document.getElementById('tour-tooltip');
+            document.querySelectorAll('.highlight').forEach(el => el.classList.remove('highlight'));
+            target.classList.add('highlight');
+            document.getElementById('tour-text').innerText = step.text;
+            document.getElementById('tour-step-num').innerText = `${tIdx + 1}/${tourSteps.length}`;
+            document.getElementById('tour-btn-text').innerText = sweetWords[tIdx];
+            const rect = target.getBoundingClientRect();
+            if (window.innerHeight - rect.bottom > 220) {
+                tooltip.style.top = (rect.bottom + 20) + 'px'; tooltip.style.bottom = 'auto';
+            } else {
+                tooltip.style.bottom = (window.innerHeight - rect.top + 20) + 'px'; tooltip.style.top = 'auto';
+            }
+            tooltip.style.left = '50%'; tooltip.style.transform = 'translateX(-50%)';
+        }
+        function nextTourStep() {
+            tIdx++;
+            if(tIdx < tourSteps.length) showTourStep();
+            else endTour();
+        }
+        function endTour() {
+            document.getElementById('tour-mask').style.display = 'none';
+            document.getElementById('tour-tooltip').style.display = 'none';
+            document.querySelectorAll('.highlight').forEach(el => el.classList.remove('highlight'));
+            state.tourDone = true;
+            localStorage.setItem('just_v17_tour', 'true');
+        }
+
+        // --- 统计页核心 (Fix 2) ---
+        function toggleStatsMenu() {
+            const m = document.getElementById('stats-menu');
+            m.style.display = m.style.display === 'block' ? 'none' : 'block';
+            if(m.style.display === 'block') renderStatsMenu();
+        }
+        function setStatsDim(dim) { state.statsDim = dim; renderStatsMenu(); }
+        function renderStatsMenu() {
+            ['week', 'month', 'year'].forEach(d => {
+                const btn = document.getElementById(`dim-${d}`);
+                btn.className = `flex-1 py-1.5 rounded-xl text-[10px] font-bold ${state.statsDim===d?'bg-white text-[#81B29A] shadow-sm':'bg-stone-100 text-stone-400'}`;
+            });
+            const list = document.getElementById('menu-options-list');
+            let html = "";
+            const now = new Date();
+            if(state.statsDim === 'week') {
+                html = `<div onclick="pickStats('this')" class="menu-item ${state.statsValue==='this'?'active':''}">本周</div><div onclick="pickStats('last')" class="menu-item ${state.statsValue==='last'?'active':''}">上周</div>`;
+            } else if(state.statsDim === 'month') {
+                for(let i=1; i<=12; i++) {
+                    const active = (state.statsValue === i && state.statsDim === 'month');
+                    html += `<div onclick="pickStats(${i})" class="menu-item ${active?'active':''}">${i}月</div>`;
+                }
+            } else {
+                const currentYear = now.getFullYear();
+                for(let y=currentYear; y>=currentYear-2; y--) {
+                    html += `<div onclick="pickStats(${y})" class="menu-item ${state.statsValue===y?'active':''}">${y}年</div>`;
+                }
+            }
+            list.innerHTML = html;
+        }
+        function pickStats(val) {
+            state.statsValue = val; toggleStatsMenu(); renderStats(); updateStatsHeader();
+        }
+        function updateStatsHeader() {
+            let label = "";
+            if(state.statsDim === 'week') label = state.statsValue==='this'?"本周":"上周";
+            else if(state.statsDim === 'month') label = state.statsValue + "月";
+            else label = state.statsValue + "年";
+            document.getElementById('stats-capsule-label').innerText = label;
+        }
+
+        // --- 路由 ---
+        function switchTab(t) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.getElementById(`page-${t}`).classList.add('active');
+            document.querySelectorAll('.n-btn').forEach(b => b.classList.replace('text-[#81B29A]', 'text-stone-300'));
+            document.getElementById(`btn-${t}`).classList.replace('text-stone-300', 'text-[#81B29A]');
+            const title = document.getElementById('title-area');
+            const dateArea = document.getElementById('date-action-area');
+            // 重新定义的页面标题与逻辑切换
+            if(t === 'history') {
+                title.innerHTML = `<h1 class="text-3xl font-bold tracking-tighter">今天</h1><span class="text-sm font-medium text-stone-400 ml-2">过得怎么样呢</span>`;
+                dateArea.style.display = 'block'; 
+                renderHistory();
+            } else if(t === 'stats') {
+                title.innerHTML = `<div class="pill-toggle" onclick="toggleStatsMenu()"><span id="stats-capsule-label">${state.statsDim==='week'?'本周':'本月'}</span><i data-lucide="chevron-down" class="w-3 h-3 text-stone-300"></i></div><span class="text-sm font-medium text-stone-400 ml-2">过得怎么样呢</span>`;
+                dateArea.style.display = 'none'; 
+                renderStats();
+            } else {
+                title.innerHTML = `<h1 class="text-3xl font-bold tracking-tighter">刚才</h1><span class="text-sm font-medium text-stone-400 ml-2">做了什么呢</span>`;
+                dateArea.style.display = 'block';
+                renderRecordUI(); 
+                setTimeout(syncWheels, 50);
+            }
+            lucide.createIcons();
+        }
+
+        // --- 核心日历逻辑 ---
+        let calM = new Date();
+        function openDateModal() { document.getElementById('date-modal').style.display = 'flex'; renderCalendar(); }
+        function closeDateModal() { document.getElementById('date-modal').style.display = 'none'; }
+        function changeMonth(dir) { calM.setMonth(calM.getMonth() + dir); renderCalendar(); }
+        function renderCalendar() {
+            document.getElementById('cal-month-title').innerText = `${calM.getFullYear()}年 ${calM.getMonth()+1}月`;
+            const grid = document.getElementById('cal-grid-days');
+            grid.innerHTML = ['一','二','三','四','五','六','日'].map(d=>`<div class="text-[8px] font-bold text-stone-300 text-center">${d}</div>`).join('');
+            const fDay = new Date(calM.getFullYear(), calM.getMonth(), 1).getDay();
+            const daysM = new Date(calM.getFullYear(), calM.getMonth()+1, 0).getDate();
+            const offset = fDay === 0 ? 6 : fDay - 1;
+            for(let i=0; i<offset; i++) grid.innerHTML += `<div></div>`;
+            for(let d=1; d<=daysM; d++) {
+                const sel = state.currentDate.getDate()===d && state.currentDate.getMonth()===calM.getMonth() && state.currentDate.getFullYear()===calM.getFullYear();
+                grid.innerHTML += `<div onclick="selectDate(${d})" class="cal-day active ${sel?'selected':''}">${d}</div>`;
+            }
+        }
+        function selectDate(d) { state.currentDate = new Date(calM.getFullYear(), calM.getMonth(), d); updateDisplayDate(); closeDateModal(); renderHistory(); }
+        function updateDisplayDate() { document.getElementById('global-date-str').innerText = state.currentDate.toLocaleDateString('zh-CN', {month:'short', day:'numeric', weekday:'short'}); }
+
+        // --- 业务方法 ---
+        function commitGrain() {
+            const tag = state.selectedTag === "OTHER" ? document.getElementById('otherInp').value : state.selectedTag;
+            if(!tag) return alert("写个事项吧");
+            const log = { id: Date.now(), date: state.currentDate.toISOString().split('T')[0], startTime: `${getWVal('h-start')}:${getWVal('m-start')}`, endTime: `${getWVal('h-end')}:${getWVal('m-end')}`, tag: tag, vibe: document.getElementById('vibeRange').value };
+            state.logs.push(log); localStorage.setItem('just_v17_logs', JSON.stringify(state.logs)); switchTab('history');
+        }
+function renderHistory() {
+            const dS = state.currentDate.toISOString().split('T')[0];
+            const filtered = storage.logs.filter(l => l.date === dS).sort((a,b)=>a.startTime.localeCompare(b.startTime));
+            const container = document.getElementById('timelineContainer');
+            if(filtered.length === 0) {
+                container.innerHTML = `<p class="text-[10px] text-stone-300 italic py-20 text-center font-serif">这一页时光还虚位以待。</p>`;
+                return;
+            }
+            container.innerHTML = filtered.map(l => `
+                <div class="relative timeline-item flex items-center">
+                    <div class="w-[70px] pr-4 text-right">
+                        <span class="text-[10px] font-bold text-stone-400 block">${l.startTime}</span>
+                        <span class="text-[8px] text-stone-200 block">~ ${l.endTime}</span>
+                    </div>
+                    <div class="flex-1 history-card flex justify-between items-center ml-2">
+                        <div class="absolute left-[70px] w-2.5 h-2.5 rounded-full border-2 border-white bg-[#81B29A] z-10"></div>
+                        <h4 class="text-sm font-bold text-stone-700">${l.tag}</h4>
+                        <div class="flex space-x-1">
+                            ${Array(Number(l.vibe)).fill(0).map(()=>`<div class="w-1 h-1 rounded-full bg-stone-100"></div>`).join('')}
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+        function renderStats() {
+            const list = document.getElementById('distList');
+            const counts = {}; state.logs.forEach(l => counts[l.tag] = (counts[l.tag] || 0) + 1);
+            const total = state.logs.length || 1;
+            list.innerHTML = Object.entries(counts).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="space-y-1"><div class="flex justify-between text-[9px] font-bold text-stone-400"><span>${k}</span><span>${Math.round(v/total*100)}%</span></div><div class="w-full h-1 bg-white/40 rounded-full overflow-hidden"><div class="h-full bg-stone-400" style="width: ${v/total*100}%"></div></div></div>`).join('');
+        }
+        async function generateReport() {
+            if(!state.key) return alert("配置 API Key");
+            const box = document.getElementById('reportContent'); box.innerText = "打捞记忆碎片中...";
+            const prompt = `用户在做：${state.logs.slice(-10).map(l=>l.tag).join(',')}。写一封温暖的信给用户。`;
+            try {
+                const res = await fetch("https://api.deepseek.com/chat/completions", { method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${state.key}`}, body:JSON.stringify({model:"deepseek-chat", messages:[{role:"system",content:prompt}]}) });
+                const data = await res.json(); box.innerText = data.choices[0].message.content;
+            } catch(e) { box.innerText = "网络受阻，但你值得被爱。"; }
+        }
+
+        // --- 辅助 ---
+        function initWheels() {
+            const h = Array.from({length:24},(_,i)=>i.toString().padStart(2,'0'));
+            const m = Array.from({length:60},(_,i)=>i.toString().padStart(2,'0'));
+            ['h-start', 'h-end', 'm-start', 'm-end'].forEach(id => {
+                const el = document.getElementById(id); const d = id.includes('h')?h:m;
+                el.innerHTML = '<div class="picker-item"></div>' + d.map(v => `<div class="picker-item">${v}</div>`).join('') + '<div class="picker-item"></div>';
+ el.onscroll = () => {
+                    const idx = Math.round(el.scrollTop / 30);
+                    Array.from(el.children).forEach((it, i) => it.classList.toggle('selected', i === idx + 1));
+                    
+                    // 实时逻辑校验
+                    const now = new Date();
+                    const sH = parseInt(getWVal('h-start')), sM = parseInt(getWVal('m-start'));
+                    const eH = parseInt(getWVal('h-end')), eM = parseInt(getWVal('m-end'));
+
+                    // 1. 禁选未来 (仅针对所选日期是今天时)
+                    if (state.currentDate.toDateString() === now.toDateString()) {
+                        if (eH > now.getHours() || (eH === now.getHours() && eM > now.getMinutes())) {
+                            scrollW('h-end', now.getHours()); scrollW('m-end', now.getMinutes());
+                        }
+                    }
+                    // 2. 跨天判定逻辑
+                    const startTotal = sH * 60 + sM;
+                    const endTotal = eH * 60 + eM;
+                    document.getElementById('hint-yesterday').style.opacity = (startTotal > endTotal) ? "1" : "0";
+                };
+        }
+        function syncWheels() { const now = new Date(); scrollW('h-end', now.getHours()); scrollW('m-end', now.getMinutes()); scrollW('h-start', (now.getHours()-1+24)%24); scrollW('m-start', now.getMinutes()); }
+        function scrollW(id, val) { const el = document.getElementById(id); if(el) el.scrollTo({ top: val*30 }); }
+        function getWVal(id) { const el = document.getElementById(id); return el.children[Math.round(el.scrollTop/30)+1].innerText; }
+        function renderRecordUI() { const box = document.getElementById('tagBox'); box.innerHTML = state.tags.map(t => `<button onclick="selTag(this, '${t}')" class="btn-tag shadow-sm">${t}</button>`).join('') + `<button onclick="showOther(this)" class="btn-tag border-dashed border-stone-200 text-stone-300">...</button>`; }
+        function selTag(el, t) { document.querySelectorAll('.btn-tag').forEach(b => b.classList.remove('active')); el.classList.add('active'); state.selectedTag = t; document.getElementById('otherInp').classList.add('hidden'); }
+        function showOther(el) { selTag(el, "OTHER"); document.getElementById('otherInp').classList.remove('hidden').focus(); }
+        function closeOnboarding() { document.getElementById('onboarding').style.display = 'none'; state.onboardingDone = true; localStorage.setItem('just_v17_onboarding', 'true'); startTour(); }
+        function saveSettings() {
+            const inps = document.querySelectorAll('.tag-inp');
+            state.tags = Array.from(inps).map(i => i.value.trim()).filter(v => v !== "");
+            state.key = document.getElementById('apiKeyInp').value;
+            localStorage.setItem('just_v17_tags', JSON.stringify(state.tags));
+            localStorage.setItem('just_v17_key', state.key);
+            alert("配置已应用"); switchTab('record');
+        }
+    </script>
+</body>
+</html>
