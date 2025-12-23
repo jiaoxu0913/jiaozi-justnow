@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>刚才</title>
+    <title>刚才 / JUST NOW</title>
     <link rel="manifest" href='data:application/manifest+json,{"name":"刚才","short_name":"刚才","display":"standalone","start_url":".","background_color":"#F5EBE0","theme_color":"#81B29A"}'>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
@@ -41,7 +41,6 @@
         .menu-item { padding: 12px 16px; font-size: 13px; font-weight: 600; border-radius: 14px; cursor: pointer; transition: 0.2s; display: flex; justify-content: space-between; align-items: center; }
         .menu-item.active { color: var(--m-sage); background: #f0f8f4; }
 
-        /* 紧凑轨迹流 */
         .timeline-line { position: absolute; left: 89px; top: 0; bottom: 0; width: 1px; background: rgba(129, 178, 154, 0.2); }
         .history-card { background: white; padding: 10px 14px; border-radius: 18px; box-shadow: 0 4px 15px rgba(0,0,0,0.02); width: 100%; }
 
@@ -99,7 +98,7 @@
             </div>
             <div class="space-y-4" id="tour-tag-target"><div id="tagBox" class="flex flex-wrap gap-2"></div><input id="otherInp" type="text" placeholder="描述细节..." class="hidden w-full p-4 rounded-2xl bg-white/60 border-none text-sm outline-none"></div>
             <div class="space-y-6"><div class="flex justify-between items-end px-1"><label class="text-[10px] font-bold text-stone-400 uppercase tracking-widest">此刻状态</label><span id="vibeLabel" class="text-[11px] font-bold text-stone-500 bg-white/40 px-3 py-1 rounded-full">平静如水</span></div><input type="range" id="vibeRange" min="1" max="5" step="1" value="3" class="w-full"></div>
-            <button onclick="saveRecord()" class="w-full bg-[#3D405B] text-white py-5 rounded-[26px] font-bold shadow-lg active:scale-95 transition text-sm tracking-[0.2em]">存入这一刻</button>
+            <button onclick="saveRecord()" id="saveBtn" class="w-full bg-[#3D405B] text-white py-5 rounded-[26px] font-bold shadow-lg active:scale-95 transition text-sm tracking-[0.2em]">存入这一刻</button>
         </div>
 
         <!-- 页面 2: 今天 -->
@@ -124,7 +123,7 @@
         <!-- 页面 4: 设置 -->
         <div id="page-settings" class="page space-y-6">
             <div class="space-y-4"><label class="text-[10px] font-bold text-stone-400 uppercase tracking-widest pl-1">常做事项</label><div id="settingTags" class="grid grid-cols-1 gap-2"></div></div>
-            <div class="space-y-4"><label class="text-[10px] font-bold text-stone-400 uppercase tracking-widest pl-1">DeepSeek API Key</label><input id="apiKeyInp" type="password" class="w-full p-4 rounded-2xl bg-white border-none text-sm outline-none shadow-sm"></div>
+            <div class="space-y-4"><label class="text-[10px] font-bold text-stone-400 uppercase tracking-widest pl-1">API Key (DeepSeek/Gemini)</label><input id="apiKeyInp" type="password" placeholder="sk-..." class="w-full p-4 rounded-2xl bg-white border-none text-sm outline-none shadow-sm"></div>
             <button onclick="applySettings()" class="w-full bg-stone-400 text-white py-4 rounded-[22px] text-[11px] font-bold uppercase tracking-widest">保存并同步</button>
             <div class="pt-10 flex justify-center opacity-20"><button onclick="if(confirm('注销所有记忆？')){localStorage.clear();location.reload();}" class="text-[10px] underline">清空数据</button></div>
         </div>
@@ -144,14 +143,15 @@
 
     <script>
         const State = {
-            logs: JSON.parse(localStorage.getItem('jn_logs_v15') || '[]'),
-            tags: JSON.parse(localStorage.getItem('jn_tags_v15') || '["深度工作", "专注阅读", "休憩发呆", "身体律动", "日常琐事"]'),
-            key: localStorage.getItem('jn_key_v15') || '',
-            onboarding: localStorage.getItem('jn_ob_v15') === 'true',
-            tour: localStorage.getItem('jn_tour_v15') === 'true',
+            logs: JSON.parse(localStorage.getItem('jn_logs_v16') || '[]'),
+            tags: JSON.parse(localStorage.getItem('jn_tags_v16') || '["深度工作", "专注阅读", "休憩发呆", "身体律动", "日常琐事"]'),
+            key: localStorage.getItem('jn_key_v16') || '',
+            onboarding: localStorage.getItem('jn_ob_v16') === 'true',
+            tour: localStorage.getItem('jn_tour_v16') === 'true',
             date: new Date(), activeTab: 'record', statsDim: 'week', statsValue: 'this', tagSelected: ''
         };
 
+        const VibeMap = { 1: "身心俱疲", 2: "略显疲态", 3: "平静如水", 4: "心生欢喜", 5: "能量满格" };
         const TourConfig = [
             { tab: 'record', target: 'tour-date-target', text: '选择日期，补录过去的时光。' },
             { tab: 'record', target: 'tour-time-target', text: '拨动滚轮，打捞刚才发生的每一刻。' },
@@ -163,6 +163,7 @@
 
         window.onload = () => {
             lucide.createIcons(); initUI(); goTab('record');
+            document.getElementById('vibeRange').oninput = (e) => { document.getElementById('vibeLabel').innerText = VibeMap[e.target.value]; };
             setTimeout(() => {
                 const splash = document.getElementById('app-splash');
                 splash.style.opacity = '0';
@@ -208,7 +209,7 @@
                     <div class="flex-1 history-card flex justify-between items-center ml-2">
                         <div class="absolute left-[89px] w-2.5 h-2.5 rounded-full border-2 border-white bg-[#81B29A] z-10"></div>
                         <h4 class="text-sm font-bold text-stone-700">${l.tag}</h4>
-                        <div class="flex space-x-0.5">${Array(Number(l.vibe)).fill(0).map(()=>`<div class="w-1 h-1 rounded-full bg-stone-100"></div>`).join('')}</div>
+                        <div class="flex space-x-0.5">${Array(Number(l.vibe)).fill(0).map(()=>`<div class="w-1 h-1 rounded-full bg-[#E07A5F] opacity-30"></div>`).join('')}</div>
                     </div>
                 </div>
             `).join('');
@@ -216,23 +217,30 @@
 
         function validateTime() {
             const now = new Date(), sH = parseInt(getW('h-start')), sM = parseInt(getW('m-start')), eH = parseInt(getW('h-end')), eM = parseInt(getW('m-end'));
+            // 严禁选择未来时间（仅限选中日期为今天时）
             if (State.date.toDateString() === now.toDateString()) {
                 if (eH > now.getHours() || (eH === now.getHours() && eM > now.getMinutes())) {
                     scrollW('h-end', now.getHours()); scrollW('m-end', now.getMinutes());
                 }
             }
+            // 判定跨越午夜
             document.getElementById('hint-yesterday').style.opacity = (sH * 60 + sM) > (eH * 60 + eM) ? '1' : '0';
         }
 
-        function commitGrain() {
+        function saveRecord() {
             const tag = State.tagSelected === "OTHER" ? document.getElementById('otherInp').value : State.tagSelected;
-            if(!tag) return alert("事项呢？");
-            State.logs.push({ id: Date.now(), date: State.date.toISOString().split('T')[0], startTime: `${getW('h-start')}:${getW('m-start')}`, endTime: `${getW('h-end')}:${getW('m-end')}`, tag: tag, vibe: document.getElementById('vibeRange').value });
-            localStorage.setItem('jn_logs_v15', JSON.stringify(State.logs)); goTab('history');
+            if(!tag) { alert("刚才做了什么呢？"); return; }
+            const log = { id: Date.now(), date: State.date.toISOString().split('T')[0], startTime: `${getW('h-start')}:${getW('m-start')}`, endTime: `${getW('h-end')}:${getW('m-end')}`, tag: tag, vibe: document.getElementById('vibeRange').value };
+            State.logs.push(log);
+            localStorage.setItem('jn_logs_v16', JSON.stringify(State.logs));
+            
+            const btn = document.getElementById('saveBtn');
+            btn.innerText = "已存入"; btn.style.backgroundColor = "#81B29A";
+            setTimeout(() => { btn.innerText = "存入这一刻"; btn.style.backgroundColor = "#3D405B"; goTab('history'); }, 600);
         }
 
         function toggleStatsMenu() { const m = document.getElementById('stats-menu'); m.style.display = m.style.display === 'block' ? 'none' : 'block'; if(m.style.display==='block') renderStatsMenu(); }
-        function setStatsDim(dim) { State.statsDim = dim; renderStatsMenu(); }
+        function setStatsDim(dim) { State.statsDim = dim; State.statsValue = (dim==='week'?'this':(dim==='month'?new Date().getMonth()+1:new Date().getFullYear())); renderStatsMenu(); }
         function renderStatsMenu() {
             ['week', 'month', 'year'].forEach(d => { document.getElementById(`dim-${d}`).className = `flex-1 py-1.5 rounded-xl text-[10px] font-bold ${State.statsDim===d?'bg-white text-[#81B29A] shadow-sm':'bg-stone-100 text-stone-400'}`; });
             const list = document.getElementById('menu-options-list'); let h = ""; const now = new Date();
@@ -250,7 +258,6 @@
             lucide.createIcons();
         }
 
-        // --- 引导系统重构 ---
         function startTour() { tourIdx = 0; document.getElementById('tour-overlay').style.display = 'block'; document.getElementById('tour-bubble').style.display = 'block'; runTourStep(); }
         function runTourStep() {
             const step = TourConfig[tourIdx]; if (State.activeTab !== step.tab) goTab(step.tab);
@@ -268,10 +275,9 @@
         function nextStep() { tourIdx++; if(tourIdx < TourConfig.length) runTourStep(); else { 
             document.getElementById('tour-overlay').style.display='none'; document.getElementById('tour-bubble').style.display='none'; 
             document.querySelectorAll('.tour-highlight-area').forEach(el => el.classList.remove('tour-highlight-area'));
-            State.tour = true; localStorage.setItem('jn_tour_v15', 'true'); goTab('record');
+            State.tour = true; localStorage.setItem('jn_tour_v16', 'true'); goTab('record');
         }}
 
-        // --- 通用 ---
         function initWheels() {
             const h = Array.from({length:24},(_,i)=>i.toString().padStart(2,'0')), m = Array.from({length:60},(_,i)=>i.toString().padStart(2,'0'));
             ['h-start', 'h-end', 'm-start', 'm-end'].forEach(id => {
@@ -282,10 +288,10 @@
         }
         function syncWheels() { const now = new Date(); scrollW('h-end', now.getHours()); scrollW('m-end', now.getMinutes()); scrollW('h-start', (now.getHours()-1+24)%24); scrollW('m-start', now.getMinutes()); }
         function scrollW(id, v) { const el = document.getElementById(id); if (el) el.scrollTo({ top: v * 30 }); }
-        function getW(id) { const el = document.getElementById(id); return el.children[Math.round(el.scrollTop/30)+1].innerText; }
+        function getW(id) { const el = document.getElementById(id); const idx = Math.round(el.scrollTop/30)+1; return el.children[idx] ? el.children[idx].innerText : "00"; }
         function renderRecordUI() { const box = document.getElementById('tagBox'); box.innerHTML = State.tags.map(t => `<button onclick="selT(this, '${t}')" class="btn-tag shadow-sm">${t}</button>`).join('') + `<button onclick="selT(this, 'OTHER')" class="btn-tag border-dashed border-stone-200 text-stone-300">...</button>`; }
         function selT(el, t) { document.querySelectorAll('.btn-tag').forEach(b => b.classList.remove('active')); el.classList.add('active'); State.tagSelected = t; document.getElementById('otherInp').classList.toggle('hidden', t !== 'OTHER'); if(t==='OTHER') document.getElementById('otherInp').focus(); }
-        function finishOnboarding() { document.getElementById('app-onboarding').style.display = 'none'; State.onboarding = true; localStorage.setItem('jn_ob_v15', 'true'); startTour(); }
+        function finishOnboarding() { document.getElementById('app-onboarding').style.display = 'none'; State.onboarding = true; localStorage.setItem('jn_ob_v16', 'true'); startTour(); }
         function updateDateHeader() { document.getElementById('header-date-str').innerText = State.date.toLocaleDateString('zh-CN', {month:'short', day:'numeric', weekday:'short'}); }
         function openCal() { document.getElementById('cal-modal').style.display = 'flex'; renderCal(); }
         function stepMonth(d) { State.date.setMonth(State.date.getMonth()+d); renderCal(); }
@@ -295,12 +301,53 @@
             const days = new Date(State.date.getFullYear(), State.date.getMonth()+1, 0).getDate();
             for(let d=1; d<=days; d++) { const isSel = State.date.getDate() === d; grid.innerHTML += `<div onclick="State.date.setDate(${d}); updateDateHeader(); document.getElementById('cal-modal').style.display='none'; renderHistory();" class="cal-day ${isSel?'selected':''}">${d}</div>`; }
         }
-        function applySettings() { State.tags = Array.from(document.querySelectorAll('.tag-inp')).map(i => i.value).filter(v=>v); State.key = document.getElementById('apiKeyInp').value; localStorage.setItem('jn_tags_v15', JSON.stringify(State.tags)); localStorage.setItem('jn_key_v15', State.key); alert("配置已同步"); goTab('record'); }
-        function renderStats() {
-            const list = document.getElementById('distList'); const counts = {}; State.logs.forEach(l => counts[l.tag] = (counts[l.tag] || 0) + 1); const total = State.logs.length || 1;
-            list.innerHTML = Object.entries(counts).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="space-y-1"><div class="flex justify-between text-[9px] font-bold text-stone-400"><span>${k}</span><span>${Math.round(v/total*100)}%</span></div><div class="w-full h-1 bg-white/40 rounded-full overflow-hidden"><div class="h-full bg-stone-400" style="width: ${v/total*100}%"></div></div></div>`).join('');
+        function applySettings() { State.tags = Array.from(document.querySelectorAll('.tag-inp')).map(i => i.value).filter(v=>v); State.key = document.getElementById('apiKeyInp').value; localStorage.setItem('jn_tags_v16', JSON.stringify(State.tags)); localStorage.setItem('jn_key_v16', State.key); alert("配置已同步"); goTab('record'); }
+        
+        function getFilteredLogs() {
+            return State.logs.filter(l => {
+                const d = new Date(l.date);
+                if(State.statsDim === 'year') return d.getFullYear() === parseInt(State.statsValue);
+                if(State.statsDim === 'month') return (d.getMonth() + 1) === parseInt(State.statsValue);
+                if(State.statsDim === 'week') {
+                    const now = new Date();
+                    const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay() + (State.statsValue === 'this' ? 0 : -7)));
+                    const endOfWeek = new Date(new Date(startOfWeek).setDate(startOfWeek.getDate() + 6));
+                    return d >= startOfWeek && d <= endOfWeek;
+                }
+                return true;
+            });
         }
-        async function getAIReport() { if(!State.key) return alert("配置 Key"); const box = document.getElementById('reportContent'); box.innerText = "打捞记忆碎片中..."; try { const res = await fetch("https://api.deepseek.com/chat/completions", { method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${State.key}`}, body:JSON.stringify({model:"deepseek-chat", messages:[{role:"system",content:`根据记录写100字叙事信件给用户：${State.logs.slice(-10).map(l=>l.tag).join(',')}`}]}) }); const data = await res.json(); box.innerText = data.choices[0].message.content; } catch(e) { box.innerText = "时光不语，但生活继续。"; } }
+
+        function renderStats() {
+            const list = document.getElementById('distList'); const counts = {}; 
+            const filtered = getFilteredLogs();
+            filtered.forEach(l => counts[l.tag] = (counts[l.tag] || 0) + 1); 
+            const total = filtered.length || 1;
+            const sorted = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+            if(sorted.length === 0) { list.innerHTML = `<p class="text-center text-[10px] text-stone-300 py-10">该周期暂无数据</p>`; return; }
+            list.innerHTML = sorted.map(([k,v])=>`<div class="space-y-1"><div class="flex justify-between text-[9px] font-bold text-stone-400"><span>${k}</span><span>${Math.round(v/total*100)}%</span></div><div class="w-full h-1 bg-white/40 rounded-full overflow-hidden"><div class="h-full bg-[#81B29A]" style="width: ${v/total*100}%"></div></div></div>`).join('');
+        }
+
+        async function getAIReport() {
+            if(!State.key) return alert("请在设置中配置 API Key");
+            const box = document.getElementById('reportContent');
+            box.innerText = "打捞记忆碎片中...";
+            const filtered = getFilteredLogs().slice(-15);
+            const prompt = `你是一位高雅、亲切且理性的女性实验室负责人。请根据用户最近的记录：${filtered.map(l=>l.tag).join(',')}，写一封100字左右的镜像叙事信件。要求：不评价，只记录，语气精致且具有科技感，称呼用户为“观察者”。`;
+            
+            try {
+                const apiUrl = State.key.startsWith('sk-') ? "https://api.deepseek.com/chat/completions" : "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
+                const res = await fetch(apiUrl, { 
+                    method:'POST', 
+                    headers:{'Content-Type':'application/json','Authorization':`Bearer ${State.key}`}, 
+                    body:JSON.stringify({ model: State.key.startsWith('sk-') ? "deepseek-chat" : "gemini-1.5-flash", messages:[{role:"system",content:prompt}] }) 
+                });
+                const data = await res.json();
+                box.innerText = data.choices[0].message.content;
+            } catch(e) {
+                box.innerText = "时光不语，但生活继续。请检查 API Key 是否有效。";
+            }
+        }
     </script>
 </body>
 </html>
