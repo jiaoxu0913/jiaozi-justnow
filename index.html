@@ -28,7 +28,18 @@
         }
 
         /* 2. 启动与寄语 */
-        #splash-screen { position: fixed; inset: 0; z-index: 9999; background: var(--m-bg); display: flex; flex-direction: column; align-items: center; justify-content: center; transition: 0.5s; }
+#splash-screen {
+            position: fixed; inset: 0; z-index: 9999; background: var(--m-bg);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            transition: opacity 0.5s;
+            /* 强制保险：如果脚本卡死，5秒后自动透明并允许点击下方 */
+            animation: force-dismiss 1s 5s forwards;
+        }
+        @keyframes force-dismiss { to { opacity: 0; pointer-events: none; visibility: hidden; } }
+        /* 跨天逻辑提示样式 */
+        #hint-yesterday { font-size: 9px; color: var(--m-clay); font-weight: bold; margin-top: 4px; display: block; opacity: 0; transition: 0.3s; text-align: center; }
+        /* 紧凑时间轴卡片 */
+        .history-card { background: white; padding: 10px 14px; border-radius: 18px; box-shadow: 0 4px 15px rgba(0,0,0,0.02); width: 100%; }
         #onboarding { position: fixed; inset: 0; z-index: 9000; background: rgba(245, 235, 224, 0.98); display: none; padding: 40px; flex-direction: column; justify-content: center; }
         
         /* 3. UI 组件 */
